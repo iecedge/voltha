@@ -18,17 +18,23 @@ MAINTAINER Voltha Community <info@opennetworking.org>
 
 # Update to have latest images
 RUN apt-get update && \
-    apt-get install -y python python-pip openssl iproute2 libpcap-dev wget
+    apt-get install -y python python-pip openssl iproute2 libpcap-dev wget curl
 
 COPY requirements.txt /tmp/requirements.txt
 
+# Dependency for kafka pip package
+RUN curl -L https://github.com/edenhill/librdkafka/archive/v0.11.6.tar.gz | tar xzf - \
+    && cd librdkafka-0.11.6/ \
+    && ./configure --prefix=/usr \
+    && make -j \
+    && make install \
+    && cd .. \
+    && rm -rf librdkafka-0.11.6/
+
 # pip install cython enum34 six && \
 # Install app dependencies
-RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
-    dpkg -i *.deb && \
-    rm -f *.deb && \
-    apt-get update && \
-    apt-get install -y wget build-essential make gcc binutils python-dev libffi-dev libssl-dev git && \
+RUN apt-get update && \
+    apt-get install -y wget build-essential make gcc binutils python-dev libffi-dev libssl-dev git libxml2-dev libxslt1-dev && \
     pip install -r /tmp/requirements.txt && \
     apt-get purge -y wget build-essential make gcc binutils python-dev libffi-dev libssl-dev git && \
     apt-get autoremove -y

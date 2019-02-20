@@ -1,32 +1,42 @@
-node('build') {
-    stage 'Cleanup workspace'
-    sh 'rm -rf ./build ./component ./incubator ./onos-apps ./orchestration ./test ./.repo'
+pipeline {
+  agent any
+  stages {
+    stage('Build') {
+      parallel {
+        stage('Build aarch64') {
+          agent {
+            node {
+              label 'aarch64'
+            }
 
-    stage 'Checkout cord repo'
-    checkout([$class: 'RepoScm', currentBranch: true, manifestRepositoryUrl: 'https://gerrit.opencord.org/manifest', quiet: true])
-
-    dir ('incubator/voltha') {
-        try {
-            stage 'Bring up voltha dev vm'
-            sh 'vagrant up voltha'
-
-            stage 'Remove the pre-created venv-linux'
-            sh 'vagrant ssh -c "rm -rf /cord/incubator/voltha/venv-linux"'
-
-            stage 'Build voltha'
-            sh 'vagrant ssh -c "cd /cord/incubator/voltha && source env.sh && make fetch && make build" voltha'
-
-            stage 'Run Integration Tests'
-            sh 'vagrant ssh -c "cd /cord/incubator/voltha && source env.sh && make jenkins-test" voltha'
-
-            currentBuild.result = 'SUCCESS'
-            slackSend channel: '#voltha', color: 'good', message: "${env.JOB_NAME} (${env.BUILD_NUMBER}) Build success.\n${env.BUILD_URL}"
-        } catch (err) {
-            currentBuild.result = 'FAILURE'
-            slackSend channel: '#voltha', color: 'danger', message: ":dizzy_face: Build failed ${env.JOB_NAME} (${env.BUILD_NUMBER})\n${env.BUILD_URL}"
-        } finally {
-            sh 'vagrant destroy -f voltha'
+          }
+          steps {
+            withDockerRegistry([ credentialsId: "fcf9c294-b8a9-4f7e-87d6-d0446f712411", url: "https://index.docker.io/v1/" ]) {
+              sh 'ci_scripts/push_containers.sh'
+            }
+          }
         }
-        echo "RESULT: ${currentBuild.result}"
+        stage('Build x86') {
+          agent {
+            node {
+              label 'x86_64'
+            }
+
+          }
+          steps {
+            withDockerRegistry([ credentialsId: "fcf9c294-b8a9-4f7e-87d6-d0446f712411", url: "https://index.docker.io/v1/" ]) {
+              sh 'ci_scripts/push_containers.sh'
+            }
+          }
+        }
+      }
     }
+    stage('Push Manifest') {
+      steps {
+        withDockerRegistry([ credentialsId: "fcf9c294-b8a9-4f7e-87d6-d0446f712411", url: "https://index.docker.io/v1/" ]) {
+          sh 'ci_scripts/push_manifest.sh'
+        }
+      }
+    }
+  }
 }

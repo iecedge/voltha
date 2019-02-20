@@ -26,9 +26,9 @@ WORKDIR ${DOWNLOAD_ROOT}
 COPY config/mvn_settings.* ${DOWNLOAD_ROOT}/
 RUN ./mvn_settings.sh
 ADD config/dependencies.xml .
-RUN mvn dependency:copy -Dmdep.useBaseVersion=true -DoutputDirectory=${DOWNLOAD_ROOT} -Dsilent=true -f dependencies.xml -s mvn_settings.xml
+RUN mvn dependency:copy  -Dmdep.useBaseVersion=true -DoutputDirectory=${DOWNLOAD_ROOT} -Dsilent=true -f dependencies.xml -s mvn_settings.xml
 
-FROM onosproject/onos:1.13.5 as install
+FROM cachengo/onos:1.13.5 as install
 MAINTAINER Open Networking Foundation <info@opennetworking.org>
 
 # The ENV settings must be replicated below as they are not shared between stages
@@ -45,11 +45,12 @@ COPY --from=download ${DOWNLOAD_ROOT} ${DOWNLOAD_ROOT}
 
 # Install the applications
 COPY config/app-install.sh ./app-install.sh
+RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
 RUN chmod 755 ./app-install.sh
 RUN ./app-install.sh
 
 # Create the final image coping over the installed applications from the build stage
-FROM onosproject/onos:1.13.5
+FROM cachengo/onos:1.13.5
 MAINTAINER Open Networking Foundation <info@opennetworking.org>
 
 # Install Key Store Options

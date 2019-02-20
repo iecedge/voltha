@@ -23,7 +23,9 @@ echo "$novendor_dirs"
 echo "--------------------------------------"
 
 echo "* Run tests with race detector"
-go test -race ${novendor_dirs}
+if test "$(uname -m)" = "x86_64" ; then
+go test -race ${novendor_dirs};
+fi
 
 echo "--------------------------------------"
 echo "* Run vet + golint"

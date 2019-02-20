@@ -17,7 +17,10 @@ ARG TAG=latest
 ARG HTTP_PROXY=
 ARG HTTPS_PROXY=
 
-FROM grpc/python as protos
+FROM python:3.6 as protos
+ENV GRPC_PYTHON_VERSION 1.4.0
+RUN python -m pip install --upgrade pip
+RUN pip install grpcio==${GRPC_PYTHON_VERSION} grpcio-tools==${GRPC_PYTHON_VERSION}
 COPY voltha/protos/*.proto /voltha/protos/
 COPY voltha/protos/third_party/google/api/*.proto /voltha/protos/third_party/google/api/
 #RUN protoc -I/voltha/protos -I/voltha/protos/third_party --include_imports --include_source_info --descriptor_set_out=/proto.pb /voltha/protos/*.proto
@@ -32,7 +35,7 @@ RUN mkdir /output
 RUN OUTPUT=/ /build.sh
 RUN ls /output
 
-FROM lyft/envoy:29361deae91575a1d46c7a21e913f19e75622ebe
+FROM cachengo/envoy:1.9.0-dev
 
 RUN apt-get update && apt-get -q install -y curl
 COPY envoy/front-proxy /envoy

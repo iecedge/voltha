@@ -127,7 +127,7 @@ FETCH_COMPOSE_IMAGE_LIST = \
         wurstmeister/zookeeper:latest
 
 # find k8s -type f | xargs grep image: | awk '{print $NF}' | sed -e 's/\"//g' | sed '/:.*$/!s/$/:latest/g' | sort -u | sed -e 's/^/       /g' -e 's/$/ \\/g'
-# Manually remove some image from this list as they don't reflect the new 
+# Manually remove some image from this list as they don't reflect the new
 # naming conventions for the VOLTHA build
 FETCH_K8S_IMAGE_LIST = \
        alpine:3.6 \
@@ -229,11 +229,15 @@ build: protoc protos go-builder containers
 
 production: protoc protos go-builder prod-containers
 
+seba: protoc protos go-builder seba-containers
+
 jenkins: build
 
 jenkins-containers: base voltha ofagent netconf consul cli envoy fluentd unum j2
 
 prod-containers: base voltha ofagent netconf shovel onos dashd cli grafana consul tools envoy fluentd unum j2
+
+seba-containers: base voltha ofagent netconf shovel onos tester config-push dashd cli portainer envoy alarm-generator test_runner
 
 containers: base voltha ofagent netconf shovel onos tester config-push dashd cli portainer grafana nginx consul tools envoy fluentd unum ponsim j2 alarm-generator test_runner
 
@@ -367,7 +371,7 @@ endif
 @SHELL_EXPORT := $(foreach v,$(MAKE_ENV),$(v)='$($(v))')
 start:
 	$(SHELL_EXPORT) STACK_TEMPLATE=./compose/voltha-stack.yml.j2 ./scripts/run-voltha.sh start
-	
+
 stop:
 	./scripts/run-voltha.sh stop
 
