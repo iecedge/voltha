@@ -38,3 +38,6 @@ RUN apt-get update && \
     pip install -r /tmp/requirements.txt && \
     apt-get purge -y wget build-essential make gcc binutils python-dev libffi-dev libssl-dev git && \
     apt-get autoremove -y
+
+# pip install dumb-init to a different directory than the deb package
+RUN ln -sf /usr/local/bin/dumb-init /usr/bin/dumb-init
