@@ -32,7 +32,7 @@ RUN mkdir /output
 RUN OUTPUT=/ /build.sh
 RUN ls /output
 
-FROM lyft/envoy:29361deae91575a1d46c7a21e913f19e75622ebe
+FROM cachengo/envoy:29361deae91575a1d46c7a21e913f19e75622ebe
 
 RUN apt-get update && apt-get -q install -y curl
 COPY envoy/front-proxy /envoy
