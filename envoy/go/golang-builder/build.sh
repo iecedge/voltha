@@ -15,54 +15,54 @@
 
 source /build_environment.sh
 
-mkdir buildreport
+#mkdir buildreport
 novendor_dirs=$(go list ./... | grep -v '/vendor/')
 
-echo "Using nonvendor dirs:"
-echo "$novendor_dirs"
-echo "--------------------------------------"
+#echo "Using nonvendor dirs:"
+#echo "$novendor_dirs"
+#echo "--------------------------------------"
 
-echo "* Run tests with race detector"
-go test -race ${novendor_dirs}
+#echo "* Run tests with race detector"
+#go test -race ${novendor_dirs}
 
-echo "--------------------------------------"
-echo "* Run vet + golint"
-for f in go_vet.txt golint.txt
-do
-    touch buildreport/${f}
-done
+#echo "--------------------------------------"
+#echo "* Run vet + golint"
+#for f in go_vet.txt golint.txt
+#do
+#    touch buildreport/${f}
+#done
 
-for d in $novendor_dirs
-do
-    go vet ${d} 2>> buildreport/go_vet.txt || true
-    golint ${d} >> buildreport/golint.txt || true
-done
+#for d in $novendor_dirs
+#do
+#    go vet ${d} 2>> buildreport/go_vet.txt || true
+#    golint ${d} >> buildreport/golint.txt || true
+#done
 
-echo "--------------------------------------"
-echo "* Run errcheck"
-errcheck ${novendor_dirs} > buildreport/errcheck.txt || true
+#echo "--------------------------------------"
+#echo "* Run errcheck"
+#errcheck ${novendor_dirs} > buildreport/errcheck.txt || true
 
 
 # Run test coverage on each subdirectories and merge the coverage profile.
-echo "--------------------------------------"
-echo "* Building coverage report"
+#echo "--------------------------------------"
+#echo "* Building coverage report"
 
-echo "mode: count" > buildreport/profile.cov
-coverDirs=$novendor_dirs
-for dir in $coverDirs
-do
-    path="$GOPATH/src/$dir"
-    if ls $path/*.go &> /dev/null; then
-        go test -covermode=count -coverprofile=$path/profile.tmp $dir
-        if [ -f $path/profile.tmp ]
-        then
-            cat $path/profile.tmp | tail -n +2 >> buildreport/profile.cov
-            rm $path/profile.tmp
-        fi
-    fi
-done
+#echo "mode: count" > buildreport/profile.cov
+#coverDirs=$novendor_dirs
+#for dir in $coverDirs
+#do
+#    path="$GOPATH/src/$dir"
+#    if ls $path/*.go &> /dev/null; then
+#        go test -covermode=count -coverprofile=$path/profile.tmp $dir
+#        if [ -f $path/profile.tmp ]
+#        then
+#            cat $path/profile.tmp | tail -n +2 >> buildreport/profile.cov
+#            rm $path/profile.tmp
+#        fi
+#    fi
+#done
 
-go tool cover -html buildreport/profile.cov -o buildreport/cover.html
+#go tool cover -html buildreport/profile.cov -o buildreport/cover.html
 
 echo "--------------------------------------"
 main_packages=$(go list ./... |grep -v vendor |grep cmd || true)

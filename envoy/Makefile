@@ -16,9 +16,9 @@
 
 # Makefile to build all protobuf and gRPC related artifacts
 
-ifeq ($(VOLTHA_BASE)_set,_set)
-  $(error To get started, please source the env.sh file from Voltha top level directory)
-endif
+#ifeq ($(VOLTHA_BASE)_set,_set)
+#  $(error To get started, please source the env.sh file from Voltha top level directory)
+#endif
 
 default: build
 
@@ -31,7 +31,7 @@ PROTOC_LIBDIR := $(PROTOC_PREFIX)/lib
 
 PROTOC := $(PROTOC_PREFIX)/bin/protoc
 
-PROTOC_VERSION := "3.3.0"
+PROTOC_VERSION := "3.5.1"
 PROTOC_DOWNLOAD_PREFIX := "https://github.com/google/protobuf/releases/download"
 PROTOC_DIR := protobuf-$(PROTOC_VERSION)
 PROTOC_TARBALL := protobuf-python-$(PROTOC_VERSION).tar.gz

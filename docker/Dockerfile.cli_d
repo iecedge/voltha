@@ -48,6 +48,9 @@ RUN echo "export VISIBLE=now" >> /etc/profile
 
 EXPOSE 22
 
+RUN chmod +x /cli/cli/setup.sh
+RUN chmod +x /cli/cli/main.py
+
 # Exposing process and default entry point
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 

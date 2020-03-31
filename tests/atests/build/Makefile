@@ -36,7 +36,7 @@ $(M)/setup:
 
 /usr/bin/docker: | $(M)/setup
 	sudo apt-key adv --keyserver keyserver.ubuntu.com --recv 0EBFCD88
-	sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(shell lsb_release -cs) stable"
+	sudo add-apt-repository "deb [arch=arm64] https://download.docker.com/linux/ubuntu $(shell lsb_release -cs) stable"
 	sudo apt update
 	sudo apt install -y "docker-ce=17.06*"
 

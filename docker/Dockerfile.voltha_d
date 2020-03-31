@@ -34,6 +34,8 @@ COPY --from=protos /protos/asfvolt16_olt /voltha/voltha/adapters/asfvolt16_olt/p
 COPY --from=protos /protos/openolt /voltha/voltha/adapters/openolt/protos
 COPY --from=protos /protos/cig_olt /voltha/voltha/protos
 
+RUN chmod +x /voltha/voltha/main.py
+
 # Exposing process and default entry point
 # EXPOSE 8000
 CMD ["python", "voltha/voltha/main.py"]

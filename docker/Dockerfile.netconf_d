@@ -19,18 +19,22 @@ FROM ${REGISTRY}${REPOSITORY}voltha-base:${TAG}
 
 MAINTAINER Voltha Community <info@opennetworking.org>
 
+ARG ARCH=arm64
+
 # Install protoc version 3.0.0; this is not yet the supported
 # version on xenial, so we need to "backport" it
 RUN apt-get update && \
     apt-get install -y zlib1g-dev wget && \
-    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotoc10_3.0.0-9_amd64.deb && \
-    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf-lite10_3.0.0-9_amd64.deb && \
-    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf-dev_3.0.0-9_amd64.deb && \
-    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf10_3.0.0-9_amd64.deb && \
-    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/protobuf-compiler_3.0.0-9_amd64.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotoc10_3.0.0-9_${ARCH}.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf-lite10_3.0.0-9_${ARCH}.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf-dev_3.0.0-9_${ARCH}.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/libprotobuf10_3.0.0-9_${ARCH}.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/p/protobuf/protobuf-compiler_3.0.0-9_${ARCH}.deb && \
     dpkg -i *.deb && \
     protoc --version && \
     rm -f *.deb
+
+RUN apt-get install -y libxslt-dev
 
 # Bundle app source
 RUN mkdir /netconf && touch /netconf/__init__.py
@@ -40,6 +44,8 @@ COPY netconf /netconf/netconf
 COPY --from=protos /protos/voltha /netconf/netconf/protos
 COPY --from=protos /protos/google/api /netconf/netconf/protos/third_party/google/api
 COPY --from=protos /protos/voltha/yang_options* /netconf/netconf/protoc_plugins/
+
+RUN chmod +x /netconf/netconf/main.py
 
 # Exposing process and default entry point
 CMD ["python", "netconf/netconf/main.py"]

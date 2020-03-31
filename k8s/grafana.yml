@@ -61,7 +61,7 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: kamon/grafana_graphite:3.0
+        image: iecedge/grafana_graphite:3.0
         ports:
         - containerPort: 80
         - containerPort: 2003

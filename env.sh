@@ -16,6 +16,14 @@ export VOLTHA_BASE=$PWD
 
 # load local python virtualenv if exists, otherwise create it
 VENVDIR="venv-$(uname -s | tr '[:upper:]' '[:lower:]')"
+sudo apt-get install libffi-dev
+curl -L https://github.com/edenhill/librdkafka/archive/v0.11.6.tar.gz | tar xzf - \
+    && cd librdkafka-0.11.6/ \
+    && ./configure --prefix=/usr \
+    && make -j \
+    && make install \
+    && cd .. \
+    && rm -rf librdkafka-0.11.6/
 if [ ! -e "$VENVDIR/.built" ]; then
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "Initializing OS-appropriate virtual env."

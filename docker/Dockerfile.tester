@@ -20,13 +20,23 @@ FROM ${REGISTRY}${REPOSITORY}voltha-base:${TAG}
 MAINTAINER Voltha Community <info@opennetworking.org>
 
 RUN apt update && apt install -y iperf isc-dhcp-client tcpdump net-tools iproute2 iputils-ping wpasupplicant wget
-RUN wget https://github.com/troglobit/mcjoin/releases/download/v2.4/mcjoin_2.4_amd64.deb
-RUN dpkg -i mcjoin_2.4_amd64.deb
+#RUN wget https://github.com/troglobit/mcjoin/releases/download/v2.4/mcjoin_2.4_amd64.deb
+#RUN dpkg -i mcjoin_2.4_amd64.deb
+RUN apt-get update && apt-get install -y git gcc make automake autoconf
+RUN git clone https://github.com/troglobit/mcjoin.git --branch=v2.4
+WORKDIR /mcjoin
+RUN ./autogen.sh
+RUN ./configure && make
+RUN make install-strip
+WORKDIR /
+RUN rm -rf mcjoin
+RUN apt-get --purge remove -y git gcc make automake autoconf
 
 COPY config/igmp.py /usr/local/bin
 COPY config/igmpv3.py /usr/local/bin
 
-RUN chmod 755 /usr/local/bin/igmp.py
+RUN chmod +x /usr/local/bin/igmp.py
+RUN chmod +x /usr/local/bin/igmpv3.py
 
 COPY config/wpa_supplicant.conf /etc/wpa_supplicant/
 COPY config/wpa_supplicant_fail.conf /etc/wpa_supplicant/

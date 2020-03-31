@@ -14,6 +14,8 @@
 FROM golang:1.9.2-alpine as builder
 MAINTAINER Open Networking Foundation <info@onlab.us>
 
+ENV CGO_ENABLED=0
+
 WORKDIR /go
 ADD . /go/src/gerrit.opencord.org/unum
 RUN go build -o /build/entry-point gerrit.opencord.org/unum

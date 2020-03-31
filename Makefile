@@ -95,7 +95,7 @@ FETCH_BUILD_IMAGE_LIST = \
        alpine:3.6 \
        centos:7 \
        centurylink/ca-certs:latest \
-       consul:0.9.2 \
+       consul:0.9.4 \
        debian:stretch-slim \
        docker.elastic.co/logstash/logstash:5.6.0 \
        fluent/fluentd:v0.12.42 \
@@ -103,7 +103,7 @@ FETCH_BUILD_IMAGE_LIST = \
        golang:1.9.2 \
        grpc/python:latest \
        kamon/grafana_graphite:3.0 \
-       lyft/envoy:29361deae91575a1d46c7a21e913f19e75622ebe \
+       cachengo/envoy:29361deae91575a1d46c7a21e913f19e75622ebe \
        maven:3-jdk-8-alpine \
        onosproject/onos:1.10.9 \
        opennms/horizon-core-web:19.0.1-1 \
@@ -112,7 +112,7 @@ FETCH_BUILD_IMAGE_LIST = \
 
 # find compose -type f | xargs grep image: | awk '{print $NF}' | grep -v voltha- | sed -e 's/\"//g' -e 's/\${REGISTRY}//g' -e 's/:\${.*:-/:/g' -e 's/\}//g' -e '/:.*$/!s/$/:latest/g' | sort -u | sed -e 's/^/        /g' -e 's/$/ \\/g'
 FETCH_COMPOSE_IMAGE_LIST = \
-        consul:0.9.2 \
+        consul:0.9.4 \
         docker.elastic.co/elasticsearch/elasticsearch:5.6.0 \
         fluent/fluentd:latest \
         fluent/fluentd:v0.12.42 \
@@ -133,10 +133,10 @@ FETCH_K8S_IMAGE_LIST = \
        alpine:3.6 \
        busybox:latest \
        nginx:1.13 \
-       consul:0.9.2 \
+       consul:0.9.4 \
        fluent/fluentd:v0.12.42 \
        gcr.io/google_containers/defaultbackend:1.4 \
-       gcr.io/google_containers/kubernetes-dashboard-amd64:v1.8.3 \
+       gcr.io/google_containers/kubernetes-dashboard-arm64:v1.8.3 \
        k8s.gcr.io/fluentd-gcp:1.30 \
        kamon/grafana_graphite:3.0 \
        marcelmaatkamp/freeradius:latest \

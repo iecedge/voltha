@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TAG=${TAG:-latest}
+TAG=${TAG:-1.7.0}
 
 rm -fr buildreport
 rm -f envoyd
-docker run -e "http_proxy=$http_proxy" -e "https_proxy=$https_proxy" -v $(pwd):/src ${REGISTRY}${REPOSITORY}voltha-go-builder:${TAG}
+docker run -e "http_proxy=$http_proxy" -e "https_proxy=$https_proxy" -v $(pwd):/src ${REGISTRY}iecedge/voltha-go-builder:${TAG}
 uid=`id -u`
 sudo chown -R ${uid} buildreport
 sudo chown ${uid} envoyd

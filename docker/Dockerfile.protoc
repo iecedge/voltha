@@ -16,7 +16,7 @@ ARG REGISTRY=
 ARG PROTOC_PREFIX=/usr/local
 ARG ROTOC_LIBDIR=${PROTOC_PREFIX}/lib
 ARG PROTOC=${PROTOC_PREFIX}/bin/protoc
-ARG PROTOC_VERSION=3.3.0
+ARG PROTOC_VERSION=3.5.1
 
 FROM ${REGISTRY}debian:stretch-slim
 MAINTAINER Voltha Community <info@opennetworking.org>
@@ -24,7 +24,7 @@ MAINTAINER Voltha Community <info@opennetworking.org>
 ENV PROTOC_PREFIX=/usr/local
 ENV ROTOC_LIBDIR=${PROTOC_PREFIX}/lib
 ENV PROTOC=${PROTOC_PREFIX}/bin/protoc
-ENV PROTOC_VERSION=3.3.0
+ENV PROTOC_VERSION=3.5.1
 ENV PROTOC_DOWNLOAD_PREFIX=https://github.com/google/protobuf/releases/download
 ENV PROTOC_DIR=protobuf-${PROTOC_VERSION}
 ENV PROTOC_TARBALL=protobuf-python-${PROTOC_VERSION}.tar.gz

@@ -16,6 +16,7 @@
 FROM fluent/fluentd:v0.12.42
 MAINTAINER Voltha Community <info@opennetworking.org>
 
+USER root
 RUN apk add --update bash
 COPY fluentd_config/fluent.conf /fluentd/etc/
 COPY fluentd_config/fluent-agg.conf /fluentd/etc/

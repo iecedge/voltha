@@ -34,5 +34,7 @@ RUN mkdir /home/voltha
 RUN chown voltha.voltha /home/voltha
 RUN echo "export VISIBLE=now" >> /etc/profile
 
+RUN chmod +x /alarm-generator/alarm-generator/main.py
+
 # Exposing process and default entry point
 ENTRYPOINT ["/usr/bin/dumb-init", "python", "/alarm-generator/alarm-generator/main.py"]

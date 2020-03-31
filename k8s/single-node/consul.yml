@@ -74,7 +74,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: consul
-          image: "consul:0.9.2"
+          image: "consul:0.9.4"
           env:
             - name: NAMESPACE
               valueFrom:

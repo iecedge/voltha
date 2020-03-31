@@ -18,7 +18,7 @@ services:
   # Single-node consul agent
   #
   vconsul:
-    image: "${REGISTRY}consul:0.9.2"
+    image: "${REGISTRY}consul:0.9.4"
     command: agent -server -bootstrap -client 0.0.0.0 -ui
     ports:
     - "8300:8300"
