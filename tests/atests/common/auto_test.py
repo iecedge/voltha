@@ -26,19 +26,30 @@ import volthaMngr
 import preprovisioning
 import discovery
 import authentication
+import dhcp
+import unicast
 import logging
 
 DEFAULT_LOG_DIR = '/tmp/voltha_test_results'
+DEFAULT_SIMTYPE = 'ponsim'
 logging.basicConfig(level=logging.INFO)
 
-def dir_init(logDir=DEFAULT_LOG_DIR, volthaDir=os.environ['VOLTHA_BASE']):
-    logging.info(__file__)
+
+def dir_init(log_dir=DEFAULT_LOG_DIR, voltha_dir=os.environ['VOLTHA_BASE']):
     """
+
+    :param log_dir: default log dir
+    :param voltha_dir: voltha base dir
+    :return: root_dir, voltha_dir, log_dir
+    """
+    logging.info(__file__)
+
+    """   
     Init automated testing environment and return three directories: root dir,
     voltha sources dir and log dir
     """
 
-    rootDir = os.path.abspath(os.path.dirname(__file__))
+    root_dir = os.path.abspath(os.path.dirname(__file__))
 
     currentTime = time.strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -46,13 +57,38 @@ def dir_init(logDir=DEFAULT_LOG_DIR, volthaDir=os.environ['VOLTHA_BASE']):
     # added to the log directory name
     # logDir += '_' + currentTime
  
-    os.system('mkdir -p ' + logDir + ' > /dev/null 2>&1')
-    os.system('rm -rf %s/*' % logDir)
+    os.system('mkdir -p ' + log_dir + ' > /dev/null 2>&1')
+    os.system('rm -rf %s/*' % log_dir)
     logging.info('Starting Voltha Test Case Suite at: %s\nRoot Directory: %s\n'
-          'VOLTHA Directory: %s\nLog Directory: %s' %
-          (currentTime, rootDir, volthaDir, logDir))
+                 'VOLTHA Directory: %s\nLog Directory: %s' %
+                 (currentTime, root_dir, voltha_dir, log_dir))
 
-    return rootDir, volthaDir, logDir
+    return root_dir, voltha_dir, log_dir
+
+
+def simtype_init(simtype=DEFAULT_SIMTYPE):
+    """
+
+    :param simtype: ponsim or bbsim
+    :return: olt_type, onu_type, olt_host_ip, onu_count
+    """
+    if simtype == 'ponsim':
+        olt_type = 'ponsim_olt'
+        onu_type = 'ponsim_onu'
+        olt_host_ip = 'olt0.voltha.svc'
+        onu_count = 1
+    elif simtype == 'bbsim':
+        olt_type = 'openolt'
+        onu_type = 'brcm_openomci_onu'
+        olt_host_ip = 'bbsim.voltha.svc'
+        onu_count = 16
+    else:
+        olt_type = None
+        onu_type = None
+        olt_host_ip = None
+        onu_count = 0
+
+    return olt_type, onu_type, olt_host_ip, onu_count
 
 
 #
@@ -66,16 +102,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='VOLTHA Automated Testing')
     parser.add_argument('-l', dest='logDir', default=DEFAULT_LOG_DIR,
                         help='log directory (default: %s).' % DEFAULT_LOG_DIR)
+    parser.add_argument('-a', dest='simtype', choices=['ponsim', 'bbsim'], default=DEFAULT_SIMTYPE,
+                        help='simtype (default: %s).' % DEFAULT_SIMTYPE)
     args = parser.parse_args()
 
     ROOT_DIR, VOLTHA_DIR, LOG_DIR = dir_init(args.logDir)
+    OLT_TYPE, ONU_TYPE, OLT_HOST_IP, ONU_COUNT = simtype_init(args.simtype)
     
-    volthaMngr.voltha_Initialize(ROOT_DIR, VOLTHA_DIR, LOG_DIR)
+    volthaMngr.voltha_initialize(ROOT_DIR, VOLTHA_DIR, LOG_DIR, args.simtype)
 
-    preprovisioning.runTest('olt.voltha.svc', 50060, 'ponsim_olt', 'ponsim_onu', LOG_DIR)
-    
-    discovery.runTest('ponsim_olt', 'ponsim_onu', LOG_DIR)
+    preprovisioning.run_test(OLT_HOST_IP, 50060, OLT_TYPE, ONU_TYPE, ONU_COUNT, LOG_DIR)
 
-    authentication.runTest(ROOT_DIR, VOLTHA_DIR, LOG_DIR)
+    discovery.run_test(OLT_HOST_IP, OLT_TYPE, ONU_TYPE, ONU_COUNT, LOG_DIR)
 
-    time.sleep(5)
+    authentication.run_test(ONU_COUNT, ROOT_DIR, VOLTHA_DIR, LOG_DIR, args.simtype)
+
+    if args.simtype == 'ponsim':
+        dhcp.run_test(ROOT_DIR, VOLTHA_DIR, LOG_DIR)
+
+        unicast.run_test(ONU_TYPE, ONU_COUNT, ROOT_DIR, VOLTHA_DIR, LOG_DIR)

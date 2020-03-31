@@ -144,11 +144,13 @@ class GrpcClient(object):
             packet_in = yield self.packet_in_queue.get()
             device_id = packet_in.id
             ofp_packet_in = packet_in.packet_in
+            self.log.debug('grpc client to send packet-in')
             self.connection_manager.forward_packet_in(device_id, ofp_packet_in)
             if self.stopped:
                 break
 
     def send_packet_out(self, device_id, packet_out):
+        self.log.debug('grpc client to send packet-out')
         packet_out = PacketOut(id=device_id, packet_out=packet_out)
         self.packet_out_queue.put(packet_out)
 
@@ -210,7 +212,7 @@ class GrpcClient(object):
             meter_mod=meter_mod
         )
         res = yield threads.deferToThread(
-            self.local_stub.UpdateLogicalDeviceMeterTable, req)
+            self.local_stub.UpdateLogicalDeviceMeterTable, req, timeout=self.grpc_timeout)
         returnValue(res)
 
     @inlineCallbacks
@@ -238,6 +240,13 @@ class GrpcClient(object):
         returnValue(res.items)
 
     @inlineCallbacks
+    def list_meters(self, device_id):
+        req = ID(id=device_id)
+        res = yield threads.deferToThread(
+            self.local_stub.ListLogicalDeviceMeters, req, timeout=self.grpc_timeout)
+        returnValue(res.items)
+
+    @inlineCallbacks
     def list_ports(self, device_id):
         req = ID(id=device_id)
         res = yield threads.deferToThread(
@@ -262,10 +271,3 @@ class GrpcClient(object):
         res = yield threads.deferToThread(
             self.local_stub.Subscribe, subscriber, timeout=self.grpc_timeout)
         returnValue(res)
-
-    @inlineCallbacks
-    def get_meter_stats(self, device_id):
-        req = ID(id=device_id)
-        res = yield threads.deferToThread(
-            self.local_stub.GetMeterStatsOfLogicalDevice, req)
-        returnValue(res.items)

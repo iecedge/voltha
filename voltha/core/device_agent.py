@@ -327,8 +327,18 @@ class DeviceAgent(object):
     @inlineCallbacks
     def update_device(self, device):
         self.log.debug('updating-device', device=device.id)
+        last_data = self.last_data
         self.last_data = device  # so that we don't propagate back
         self.proxy.update('/', device)
+
+        # If the last device data also is enabled, active and reachable,
+        # dont do anything.
+        if last_data.admin_state == AdminState.ENABLED and \
+                last_data.oper_status == OperStatus.ACTIVE and \
+                last_data.connect_status == ConnectStatus.REACHABLE:
+            self.log.info("device-status-not-changed--nothing-to-do")
+            return
+
         if device.admin_state == AdminState.ENABLED and \
                 device.oper_status == OperStatus.ACTIVE and \
                 device.connect_status == ConnectStatus.REACHABLE:
@@ -374,7 +384,13 @@ class DeviceAgent(object):
             self.log.debug('disable-device', device=device, dry_run=dry_run)
             if not dry_run:
                 # Remove all flows before disabling device
-                self._delete_all_flows()
+                # Only do this for ONUs. ponsim seems to want the flows
+                # to be removed on onu disable and it does not seem to
+                # hurt the real devices. Flows on OLT are not removed when
+                # OLT is disabled - each adapter may do its own thing
+                # for disable -e.g. OpenOLT disables the NNI interface.
+                if not device.root:
+                    self._delete_all_flows()
                 yield self.adapter_agent.disable_device(device)
         except Exception, e:
             self.log.exception('error', e=e)
@@ -450,10 +466,10 @@ class DeviceAgent(object):
         :return: None
         """
         self.current_flows = self.flows_proxy.get('/')
-        self.log.debug('pre-processing-flows',
-                       logical_device_id=self.last_data.id,
-                       desired_flows=flows,
-                       existing_flows=self.current_flows)
+        # self.log.debug('pre-processing-flows',
+        #                logical_device_id=self.last_data.id,
+        #                desired_flows=flows,
+        #                existing_flows=self.current_flows)
 
         if self.flow_changes is None:
             self.flow_changes = FlowChanges()
@@ -477,14 +493,15 @@ class DeviceAgent(object):
 
         self.log.debug('pre-processed-flows',
                        logical_device_id=self.last_data.id,
-                       flow_changes=self.flow_changes)
+                       flows_to_add=len(self.flow_changes.to_add.items),
+                       flows_to_remove=len(self.flow_changes.to_remove.items))
 
 
     @inlineCallbacks
     def _flow_table_updated(self, flows):
         try:
             self.log.debug('flow-table-updated',
-                        logical_device_id=self.last_data.id, flows=flows)
+                        logical_device_id=self.last_data.id)
             if self.flow_changes is not None and (len(self.flow_changes.to_remove.items) == 0) and (len(
                     self.flow_changes.to_add.items) == 0):
                 self.log.debug('no-flow-update-required',

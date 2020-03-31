@@ -28,6 +28,8 @@ from voltha.adapters.openolt.openolt_platform import OpenOltPlatform
 
 class OpenOltResourceMgr(object):
     BASE_PATH_KV_STORE = "service/voltha/openolt/{}"  # service/voltha/openolt/<device_id>
+    TP_ID_PATH_SUFFIX = 'tp_id/{}'  # tp_id/<(pon_id, onu_id, uni_id)>
+    METER_ID_PATH_SUFFIX = 'meter_id/{}/{}'  # meter_id/<(pon_id, onu_id, uni_id)>/<direction>
 
     def __init__(self, device_id, host_and_port, extra_args, device_info):
         self.log = structlog.get_logger(id=device_id,
@@ -123,7 +125,7 @@ class OpenOltResourceMgr(object):
 
     @property
     def max_uni_id_per_onu(self):
-        return 0 #OpenOltPlatform.MAX_UNIS_PER_ONU-1, zero-based indexing Uncomment or override to make default multi-uni
+        return 0  # OpenOltPlatform.MAX_UNIS_PER_ONU-1, zero-based indexing Uncomment or override to make default multi-uni
 
     def assert_uni_id_limit(self, pon_intf_id, onu_id, uni_id):
         self.assert_onu_id_limit(pon_intf_id, onu_id)
@@ -133,55 +135,85 @@ class OpenOltResourceMgr(object):
         onu_id = self.resource_mgrs[pon_intf_id].get_resource_id(
             pon_intf_id, PONResourceManager.ONU_ID, 1)
 
-        if onu_id is not None:
-            pon_intf_onu_id = (pon_intf_id, onu_id)
-            self.resource_mgrs[pon_intf_id].init_resource_map(
-                pon_intf_onu_id)
-
         return onu_id
 
-    def get_flow_id(self, pon_intf_id, onu_id, uni_id, flow_store_cookie,
-                    flow_category=None):
+    def get_flow_id(self, pon_intf_id, onu_id, uni_id, **kwargs):
         pon_intf_onu_id = (pon_intf_id, onu_id, uni_id)
+        flow_store_cookie = kwargs.pop('flow_cookie', None)
+        flow_category = kwargs.pop('flow_category', None)
+        flow_pcp = kwargs.pop('flow_pcp', None)
         try:
             flow_ids = self.resource_mgrs[pon_intf_id]. \
                 get_current_flow_ids_for_onu(pon_intf_onu_id)
             if flow_ids is not None:
                 for flow_id in flow_ids:
-                    flows = self.get_flow_id_info(pon_intf_id, onu_id, uni_id, flow_id)
-                    assert (isinstance(flows, list))
-                    for flow in flows:
-
-                        if flow_category is not None and \
-                                'flow_category' in flow and \
-                                flow['flow_category'] == flow_category:
-                            return flow_id
-                        if flow['flow_store_cookie'] == flow_store_cookie:
-                            return flow_id
+                    try:
+                        flows = self.get_flow_id_info(
+                            pon_intf_id, onu_id, uni_id, flow_id
+                        )
+                        assert (isinstance(flows, list))
+                        for flow in flows:
+                            # If a flow_cookie is provided, we need no other match
+                            # criteria to find the relevant flow_id.
+                            # Return the first matched flow for the given flow_store_cookie
+                            if flow_store_cookie is not None and \
+                                    flow_store_cookie == flow['flow_store_cookie']:
+                                return flow_id
+                            # If flow_category is specified as match criteria, we need the
+                            # the vlan pcp for the flow as well. This is because the given
+                            # flow_category (for ex: HSIA) could cater to more than one vlan pcp.
+                            # Each, flow matches uniquely matches one vlan pcp.
+                            # So, to find the exact flow_id we need the vlan pcp too.
+                            if flow_category is not None:
+                                assert flow_pcp is not None
+                                if 'flow_category' in flow and \
+                                    flow['flow_category'] == flow_category:
+                                    if 'o_pbits' in flow['classifier'] and \
+                                        flow['classifier']['o_pbits'] == flow_pcp:
+                                        return flow_id
+                                    elif flow_pcp == 0 and \
+                                        'o_pbits' not in flow['classifier']:
+                                        return flow_id
+                    except KeyError as e:
+                        self.log.error("key-error-retrieving-flow-info",
+                                       e=e, flow_id=flow_id)
         except Exception as e:
             self.log.error("error-retrieving-flow-info", e=e)
 
+        # We could not find any existing flow_id for the given match criteria.
+        # Generate a new flow id.
         flow_id = self.resource_mgrs[pon_intf_id].get_resource_id(
             pon_intf_onu_id[0], PONResourceManager.FLOW_ID)
         if flow_id is not None:
             self.resource_mgrs[pon_intf_id].update_flow_id_for_onu(
                 pon_intf_onu_id, flow_id
             )
-
         return flow_id
 
-    def get_flow_id_info(self, pon_intf_id, onu_id, uni_id, flow_id):
-        pon_intf_onu_id = (pon_intf_id, onu_id, uni_id)
-        return self.resource_mgrs[pon_intf_id].get_flow_id_info(pon_intf_onu_id, flow_id)
+    def get_flow_id_info(self, intf_id, onu_id, uni_id, flow_id):
+        '''
+        Note: For flows which trap from the NNI and not really associated with any particular
+        ONU (like LLDP), the onu_id and uni_id is set as -1. The intf_id is the NNI intf_id.
+        '''
+        intf_onu_id = (intf_id, onu_id, uni_id)
+        return self.resource_mgrs[intf_id].get_flow_id_info(intf_onu_id, flow_id)
 
-    def get_current_flow_ids_for_uni(self, pon_intf_id, onu_id, uni_id):
-        pon_intf_onu_id = (pon_intf_id, onu_id, uni_id)
-        return self.resource_mgrs[pon_intf_id].get_current_flow_ids_for_onu(pon_intf_onu_id)
+    def get_current_flow_ids(self, intf_id, onu_id, uni_id):
+        '''
+        Note: For flows which trap from the NNI and not really associated with any particular
+        ONU (like LLDP), the onu_id and uni_id is set as -1. The intf_id is the NNI intf_id.
+        '''
+        intf_onu_id = (intf_id, onu_id, uni_id)
+        return self.resource_mgrs[intf_id].get_current_flow_ids_for_onu(intf_onu_id)
 
-    def update_flow_id_info_for_uni(self, pon_intf_id, onu_id, uni_id, flow_id, flow_data):
-        pon_intf_onu_id = (pon_intf_id, onu_id, uni_id)
-        return self.resource_mgrs[pon_intf_id].update_flow_id_info_for_onu(
-            pon_intf_onu_id, flow_id, flow_data)
+    def update_flow_id_info(self, intf_id, onu_id, uni_id, flow_id, flow_data):
+        '''
+        Note: For flows which trap from the NNI and not really associated with any particular
+        ONU (like LLDP), the onu_id and uni_id is set as -1. The intf_id is the NNI intf_id.
+        '''
+        intf_onu_id = (intf_id, onu_id, uni_id)
+        return self.resource_mgrs[intf_id].update_flow_id_info_for_onu(
+            intf_onu_id, flow_id, flow_data)
 
     def get_alloc_id(self, pon_intf_onu_id):
         # Derive the pon_intf from the pon_intf_onu_id tuple
@@ -274,19 +306,20 @@ class OpenOltResourceMgr(object):
         self.resource_mgrs[pon_intf_id].remove_resource_map(
             pon_intf_onu_id)
 
-    def free_flow_id_for_uni(self, pon_intf_id, onu_id, uni_id, flow_id):
-        self.resource_mgrs[pon_intf_id].free_resource_id(
-            pon_intf_id, PONResourceManager.FLOW_ID, flow_id)
-        pon_intf_onu_id = (pon_intf_id, onu_id, uni_id)
-        self.resource_mgrs[pon_intf_id].update_flow_id_for_onu(pon_intf_onu_id,
-                                                               flow_id, False)
-        self.resource_mgrs[pon_intf_id].remove_flow_id_info(pon_intf_onu_id,
-                                                            flow_id)
+    def free_flow_id(self, intf_id, onu_id, uni_id, flow_id):
+        self.resource_mgrs[intf_id].free_resource_id(
+            intf_id, PONResourceManager.FLOW_ID, flow_id)
+        intf_onu_id = (intf_id, onu_id, uni_id)
+        self.resource_mgrs[intf_id].update_flow_id_for_onu(intf_onu_id,
+                                                           flow_id, False)
+        self.resource_mgrs[intf_id].remove_flow_id_info(intf_onu_id,
+                                                        flow_id)
 
     def free_pon_resources_for_onu(self, pon_intf_id_onu_id):
 
         pon_intf_id = pon_intf_id_onu_id[0]
         onu_id = pon_intf_id_onu_id[1]
+        uni_id = pon_intf_id_onu_id[2]
         alloc_ids = \
             self.resource_mgrs[pon_intf_id].get_current_alloc_ids_for_onu(pon_intf_id_onu_id)
         self.resource_mgrs[pon_intf_id].free_resource_id(pon_intf_id,
@@ -304,6 +337,9 @@ class OpenOltResourceMgr(object):
         self.resource_mgrs[pon_intf_id].free_resource_id(pon_intf_id,
                                                          PONResourceManager.FLOW_ID,
                                                          flow_ids)
+        if flow_ids:
+            for flow_id in flow_ids:
+                self.free_flow_id(pon_intf_id, onu_id, uni_id, flow_id)
 
         self.resource_mgrs[pon_intf_id].free_resource_id(pon_intf_id,
                                                          PONResourceManager.ONU_ID,
@@ -432,4 +468,74 @@ class OpenOltResourceMgr(object):
                                            flow_id_shared_resource_mgr=global_resource_mgr)
 
         # Make sure loaded range fits the platform bit encoding ranges
-        resource_mgr.update_ranges(uni_id_start_idx=0, uni_id_end_idx=OpenOltPlatform.MAX_UNIS_PER_ONU-1)
+        resource_mgr.update_ranges(uni_id_start_idx=0, uni_id_end_idx=OpenOltPlatform.MAX_UNIS_PER_ONU - 1)
+
+    def is_flow_cookie_on_kv_store(self, intf_id, onu_id, uni_id, flow_store_cookie):
+        '''
+        Note: For flows which trap from the NNI and not really associated with any particular
+        ONU (like LLDP), the onu_id and uni_id is set as -1. The intf_id is the NNI intf_id.
+        '''
+        intf_onu_id = (intf_id, onu_id, uni_id)
+        try:
+            flow_ids = self.resource_mgrs[intf_id]. \
+                get_current_flow_ids_for_onu(intf_onu_id)
+            if flow_ids is not None:
+                for flow_id in flow_ids:
+                    flows = self.get_flow_id_info(intf_id, onu_id, uni_id, flow_id)
+                    assert (isinstance(flows, list))
+                    for flow in flows:
+                        if flow['flow_store_cookie'] == flow_store_cookie:
+                            return True
+        except Exception as e:
+            self.log.error("error-retrieving-flow-info", e=e)
+
+        return False
+
+    def update_tech_profile_id_for_onu(self, intf_id, onu_id, uni_id, tp_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        kv_path = OpenOltResourceMgr.TP_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id))
+        self.kv_store[kv_path] = str(tp_id)
+
+    def get_tech_profile_id_for_onu(self, intf_id, onu_id, uni_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        try:
+            kv_path = OpenOltResourceMgr.TP_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id))
+            return int(self.kv_store[kv_path])
+        except Exception as e:
+            self.log.warn("tp-id-not-found-on-kv-store", e=e)
+            return None
+
+    def remove_tech_profile_id_for_onu(self, intf_id, onu_id, uni_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        kv_path = OpenOltResourceMgr.TP_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id))
+        try:
+            del self.kv_store[kv_path]
+        except Exception as e:
+            self.log.error("error-deleting-tech-profile-id", e=e)
+
+    def update_meter_id_for_onu(self, direction, intf_id, onu_id, uni_id, meter_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        kv_path = OpenOltResourceMgr.METER_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id),
+                                                                 direction)
+        self.kv_store[kv_path] = str(meter_id)
+        self.log.debug("updated-meter-id-for-onu", path=kv_path, meter_id=meter_id)
+
+    def get_meter_id_for_onu(self, direction, intf_id, onu_id, uni_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        try:
+            kv_path = OpenOltResourceMgr.METER_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id),
+                                                                     direction)
+            return int(self.kv_store[kv_path])
+        except Exception as e:
+            self.log.debug("meter-id-not-found-on-kv-store", e=e)
+            return None
+
+    def remove_meter_id_for_onu(self, direction, intf_id, onu_id, uni_id):
+        intf_id_onu_id_uni_id = (intf_id, onu_id, uni_id)
+        try:
+            kv_path = OpenOltResourceMgr.METER_ID_PATH_SUFFIX.format(str(intf_id_onu_id_uni_id),
+                                                                     direction)
+            del self.kv_store[kv_path]
+            self.log.debug("removed-meter-id-for-onu", path=kv_path)
+        except Exception as e:
+            self.log.debug("error-removing-meter", e=e)

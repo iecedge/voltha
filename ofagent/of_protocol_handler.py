@@ -29,6 +29,10 @@ class OpenFlowProtocolHandler(object):
 
     ofp_version = [4]  # OFAgent supported versions
 
+    MAX_METER_IDS = 4294967295
+    MAX_METER_BANDS = 255
+    MAX_METER_COLORS = 255
+
     def __init__(self, datapath_id, device_id, agent, cxn, rpc):
         """
         The upper half of the OpenFlow protocol, focusing on message
@@ -128,7 +132,6 @@ class OpenFlowProtocolHandler(object):
         elif self.role == ofp.OFPCR_ROLE_SLAVE:
            self.cxn.send(ofp.message.bad_request_error_msg(code=ofp.OFPBRC_IS_SLAVE))
 
-
     def handle_meter_mod_request(self, req):
         if self.role == ofp.OFPCR_ROLE_MASTER or self.role == ofp.OFPCR_ROLE_EQUAL:
             try:
@@ -144,10 +147,9 @@ class OpenFlowProtocolHandler(object):
     @inlineCallbacks
     def handle_meter_stats_request(self, req):
         try:
-            meter_stats = yield self.rpc.get_meter_stats(self.device_id)
-            meter_stats = [to_loxi(m) for m in meter_stats]
-            of_message = ofp.message.meter_stats_reply(xid=req.xid, entries=meter_stats)
-            self.cxn.send(of_message)
+            meters = yield self.rpc.list_meters(self.device_id)
+            self.cxn.send(ofp.message.meter_stats_reply(
+                xid=req.xid, entries=[to_loxi(m.stats) for m in meters]))
         except Exception, e:
             log.exception("failed-meter-stats-request", req=req, e=e)
 
@@ -261,7 +263,13 @@ class OpenFlowProtocolHandler(object):
         raise NotImplementedError()
 
     def handle_meter_features_request(self, req):
-        self.cxn.send(ofp.message.bad_request_error_msg())
+        feature = ofp.meter_features(max_meter=OpenFlowProtocolHandler.MAX_METER_IDS,
+                                     band_types=ofp.OFPMBT_DROP,
+                                     capabilities=ofp.OFPMF_KBPS,
+                                     max_bands=OpenFlowProtocolHandler.MAX_METER_BANDS,
+                                     max_color=OpenFlowProtocolHandler.MAX_METER_COLORS)
+        self.cxn.send(ofp.message.meter_features_stats_reply(xid=req.xid, flags=None,
+                                                             features=feature))
 
     @inlineCallbacks
     def handle_port_stats_request(self, req):
@@ -339,3 +347,6 @@ class OpenFlowProtocolHandler(object):
 
     def forward_port_status(self, ofp_port_status):
         self.cxn.send(to_loxi(ofp_port_status))
+
+    def forward_flow_removed(self, ofp_flow_removed):
+        self.cxn.send(to_loxi(ofp_flow_removed))

@@ -25,7 +25,7 @@ from twisted.internet import task
 from common.utils.id_generation import create_cluster_device_id
 from voltha.core.config.config_root import ConfigRoot
 from voltha.protos.openflow_13_pb2 import PacketIn, Flows, FlowGroups, \
-    ofp_port_status
+    Meters, ofp_port_status, ofp_flow_removed
 from voltha.protos.voltha_pb2_grpc import \
     add_VolthaLocalServiceServicer_to_server, VolthaLocalServiceServicer
 from voltha.protos.voltha_pb2 import \
@@ -1156,6 +1156,10 @@ class LocalHandler(VolthaLocalServiceServicer):
         event = ChangeEvent(id=device_id, port_status=port_status)
         self.core.change_event_queue.put(event)
 
+    def send_flow_removed_event(self, device_id, flow_removed):
+        assert isinstance(flow_removed, ofp_flow_removed)
+        event = ChangeEvent(id=device_id, flow_removed=flow_removed)
+        self.core.change_event_queue.put(event)
 
     @twisted_async
     def ListAlarmFilters(self, request, context):
@@ -1392,22 +1396,44 @@ class LocalHandler(VolthaLocalServiceServicer):
             context.set_code(StatusCode.NOT_FOUND)
             return AlarmDeviceData()
 
-
     @twisted_async
     def UpdateLogicalDeviceMeterTable(self, request, context):
-        log.error("logical-device-meter-update-service not implemented yet")
-        context.set_code(StatusCode.UNIMPLEMENTED)
-        context.set_details("UpdateLogicalDeviceMeterTable service has not been implemented yet")
-        return Empty()
+        log.info('meter-table-update-grpc-request', request=request)
 
+        if '/' in request.id:
+            context.set_details('Malformed logical device id \'{}\''.format(request.id))
+            context.set_code(StatusCode.INVALID_ARGUMENT)
+            return Empty()
+
+        try:
+            agent = self.core.get_logical_device_agent(request.id)
+            agent.update_meter_table(request.meter_mod)
+            return Empty()
+        except KeyError:
+            context.set_details('Logical device \'{}\' not found'.format(request.id))
+            context.set_code(StatusCode.NOT_FOUND)
+            return Empty()
 
     @twisted_async
-    def GetMeterStatsOfLogicalDevice(self, request, context):
-        log.error("meter-stats-acquisition is not implemented yet")
-        context.set_code(StatusCode.UNIMPLEMENTED)
-        context.set_details("UpdateLogicalDeviceMeterTable service has not been implemented yet")
-        return Empty()
+    def ListLogicalDeviceMeters(self, request, context):
+        log.debug('grpc-request', request=request)
 
+        if '/' in request.id:
+            context.set_details(
+                'Malformed logical device id \'{}\''.format(request.id))
+            context.set_code(StatusCode.INVALID_ARGUMENT)
+            return Meters()
+
+        try:
+            meters = self.root.get(
+                '/logical_devices/{}/meters'.format(request.id))
+            log.debug("Found meters", meters=meters)
+            return meters
+        except KeyError:
+            context.set_details(
+                'Logical device \'{}\' not found'.format(request.id))
+            context.set_code(StatusCode.NOT_FOUND)
+            return Meters()
 
     @twisted_async
     def SimulateAlarm(self, request, context):

@@ -31,6 +31,7 @@ type_callable_map.update({
     FieldDescriptor.TYPE_STRING: str
 })
 
+
 def pb2dict(pb):
     """
     Convert protobuf to a dict of values good for instantiating
@@ -41,19 +42,23 @@ def pb2dict(pb):
     """
     return protobuf_to_dict(pb, type_callable_map)
 
+
 def to_loxi(grpc_object):
     cls = grpc_object.__class__
     converter = to_loxi_converters[cls.__name__]
     return converter(grpc_object)
+
 
 def to_grpc(loxi_object):
     cls = loxi_object.__class__
     converter = to_grpc_converters[cls]
     return converter(loxi_object)
 
+
 def ofp_port_to_loxi_port_desc(pb):
     kw = pb2dict(pb)
     return of13.common.port_desc(**kw)
+
 
 def ofp_port_status_to_loxi_port_status(pb):
     return of13.message.port_status(
@@ -61,13 +66,37 @@ def ofp_port_status_to_loxi_port_status(pb):
         desc=ofp_port_to_loxi_port_desc(pb.desc)
     )
 
+def ofp_flow_removed_to_loxi_flow_removed(pb):
+    return of13.message.flow_removed(
+        cookie=pb.cookie,
+        priority=pb.priority,
+        reason=pb.reason,
+        table_id=pb.table_id,
+        match=make_loxi_match(pb2dict(pb.match))
+    )
+
 def ofp_port_stats_to_loxi_port_stats(pb):
     kw = pb2dict(pb)
     return of13.port_stats_entry(**kw)
 
+
 def ofp_meter_stats_to_loxi_meter_stats(pb):
-    kw = pb2dict(pb)
-    return of13.meter_stats(**kw)
+    return of13.meter_stats(
+        meter_id=pb.meter_id,
+        flow_count=pb.flow_count,
+        packet_in_count=pb.packet_in_count,
+        byte_in_count=pb.byte_in_count,
+        duration_sec=pb.duration_sec,
+        duration_nsec=pb.duration_nsec,
+        band_stats=[to_loxi(band_stat) for band_stat in pb.band_stats])
+
+
+def ofp_meter_band_stats_to_loxi_meter_stats(pb):
+    return of13.meter_band_stats(
+        packet_band_count=pb.packet_band_count,
+        byte_band_count=pb.byte_band_count
+    )
+
 
 def make_loxi_field(oxm_field):
     assert oxm_field['oxm_class'] == pb2.OFPXMC_OPENFLOW_BASIC
@@ -87,6 +116,9 @@ def make_loxi_field(oxm_field):
             of13.oxm.ip_proto(value=ofb_field['ip_proto']))
 
     elif field_type == pb2.OFPXMT_OFB_VLAN_VID:
+        if ofb_field.get('has_mask', 0):
+            return of13.oxm.vlan_vid_masked(value=ofb_field['vlan_vid'],
+                                            value_mask=ofb_field['vlan_vid_mask'])
         return (
             of13.oxm.vlan_vid(value=ofb_field['vlan_vid']))
 
@@ -117,6 +149,7 @@ def make_loxi_field(oxm_field):
     else:
         raise NotImplementedError(
             'OXM match field for type %s' % field_type)
+
 
 def make_loxi_match(match):
     assert match.get('type', pb2.OFPMT_STANDARD) == pb2.OFPMT_OXM
@@ -170,12 +203,27 @@ def ofp_flow_stats_to_loxi_flow_stats(pb):
         elif type == pb2.OFPIT_GOTO_TABLE:
             return of13.instruction.goto_table(
                 table_id=inst['goto_table']['table_id'])
+        elif type == pb2.OFPIT_WRITE_ACTIONS:
+            return of13.instruction.write_actions(
+                actions=[make_loxi_action(a)
+                         for a in inst['actions']['actions']])
+        elif type == pb2.OFPIT_WRITE_METADATA:
+            if 'metadata' in inst['write_metadata']:
+                return of13.instruction.write_metadata(
+                        metadata=inst['write_metadata']['metadata'])
+            else:
+                return of13.instruction.write_metadata(0)
+        elif type == pb2.OFPIT_METER:
+            return of13.instruction.meter(
+                meter_id=inst['meter']['meter_id'])
 
         else:
             raise NotImplementedError('Instruction type %d' % type)
 
     kw['match'] = make_loxi_match(kw['match'])
-    kw['instructions'] = [make_loxi_instruction(i) for i in kw['instructions']]
+    # if the flow action is drop, then the instruction is not found in the dict
+    if 'instructions' in kw:
+        kw['instructions'] = [make_loxi_instruction(i) for i in kw['instructions']]
     del kw['id']
     return of13.flow_stats_entry(**kw)
 
@@ -190,6 +238,7 @@ def ofp_packet_in_to_loxi_packet_in(pb):
         data=pb.data
     )
     return packet_in
+
 
 def ofp_group_desc_to_loxi_group_desc(pb):
     return of13.group_desc_stats_entry(
@@ -227,6 +276,7 @@ def ofp_bucket_to_loxi_bucket(pb):
 to_loxi_converters = {
     'ofp_port': ofp_port_to_loxi_port_desc,
     'ofp_port_status': ofp_port_status_to_loxi_port_status,
+    'ofp_flow_removed': ofp_flow_removed_to_loxi_flow_removed,
     'ofp_flow_stats': ofp_flow_stats_to_loxi_flow_stats,
     'ofp_packet_in': ofp_packet_in_to_loxi_packet_in,
     'ofp_group_stats': ofp_group_stats_to_loxi_group_stats,
@@ -235,7 +285,8 @@ to_loxi_converters = {
     'ofp_bucket': ofp_bucket_to_loxi_bucket,
     'ofp_action': make_loxi_action,
     'ofp_port_stats': ofp_port_stats_to_loxi_port_stats,
-    'ofp_meter_stats': ofp_meter_stats_to_loxi_meter_stats
+    'ofp_meter_stats': ofp_meter_stats_to_loxi_meter_stats,
+    'ofp_meter_band_stats': ofp_meter_band_stats_to_loxi_meter_stats
 }
 
 
@@ -254,6 +305,7 @@ def loxi_flow_mod_to_ofp_flow_mod(lo):
         flags=lo.flags,
         match=to_grpc(lo.match),
         instructions=[to_grpc(i) for i in lo.instructions])
+
 
 def loxi_meter_mod_to_ofp_meter_mod(lo):
     return pb2.ofp_meter_mod(
@@ -364,6 +416,16 @@ def loxi_oxm_vlan_vid_to_ofp_oxm(lo):
             vlan_vid=lo.value))
 
 
+def loxi_oxm_vlan_vid_masked_to_ofp_oxm(lo):
+    return pb2.ofp_oxm_field(
+        oxm_class=pb2.OFPXMC_OPENFLOW_BASIC,
+        ofb_field=pb2.ofp_oxm_ofb_field(
+            type=pb2.OFPXMT_OFB_VLAN_VID,
+            has_mask=True,
+            vlan_vid=lo.value,
+            vlan_vid_mask=lo.value_mask))
+
+
 def loxi_oxm_vlan_pcp_to_ofp_oxm(lo):
     return pb2.ofp_oxm_field(
         oxm_class=pb2.OFPXMC_OPENFLOW_BASIC,
@@ -421,10 +483,31 @@ def loxi_goto_table_to_ofp_instruction(lo):
         goto_table=pb2.ofp_instruction_goto_table(table_id=lo.table_id))
 
 
+def loxi_write_metadata_to_ofp_instruction(lo):
+    return pb2.ofp_instruction(
+        type=pb2.OFPIT_WRITE_METADATA,
+        write_metadata=pb2.ofp_instruction_write_metadata(
+            metadata=lo.metadata,
+            metadata_mask=lo.metadata_mask))
+
+
+def loxi_meter_to_ofp_instruction(lo):
+    return pb2.ofp_instruction(
+        type=pb2.OFPIT_METER,
+        meter=pb2.ofp_instruction_meter(meter_id=lo.meter_id))
+
+
 def loxi_output_action_to_ofp_action(lo):
     return pb2.ofp_action(
         type=pb2.OFPAT_OUTPUT,
         output=pb2.ofp_action_output(port=lo.port, max_len=lo.max_len))
+
+
+def loxi_write_actions_to_ofp_instruction(lo):
+    return pb2.ofp_instruction(
+        type=pb2.OFPIT_WRITE_ACTIONS,
+        actions=pb2.ofp_instruction_actions(
+            actions=[to_grpc(a) for a in lo.actions]))
 
 
 def loxi_group_action_to_ofp_action(lo):
@@ -475,6 +558,7 @@ to_grpc_converters = {
     of13.oxm.in_port: loxi_oxm_in_port_to_ofp_oxm,
     of13.oxm.ip_proto: loxi_oxm_ip_proto_to_ofp_oxm,
     of13.oxm.vlan_vid: loxi_oxm_vlan_vid_to_ofp_oxm,
+    of13.oxm.vlan_vid_masked: loxi_oxm_vlan_vid_masked_to_ofp_oxm,
     of13.oxm.vlan_pcp: loxi_oxm_vlan_pcp_to_ofp_oxm,
     of13.oxm.ipv4_dst: loxi_oxm_ipv4_dst_to_ofp_oxm,
     of13.oxm.udp_src: loxi_oxm_udp_src_to_ofp_oxm,
@@ -483,7 +567,10 @@ to_grpc_converters = {
 
     of13.instruction.apply_actions: loxi_apply_actions_to_ofp_instruction,
     of13.instruction.clear_actions: loxi_clear_actions_to_ofp_instruction,
+    of13.instruction.write_actions: loxi_write_actions_to_ofp_instruction,
     of13.instruction.goto_table: loxi_goto_table_to_ofp_instruction,
+    of13.instruction.write_metadata: loxi_write_metadata_to_ofp_instruction,
+    of13.instruction.meter: loxi_meter_to_ofp_instruction,
 
     of13.action.output: loxi_output_action_to_ofp_action,
     of13.action.group: loxi_group_action_to_ofp_action,

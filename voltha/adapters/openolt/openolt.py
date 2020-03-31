@@ -32,9 +32,9 @@ from voltha.registry import registry
 from voltha.adapters.openolt.openolt_flow_mgr import OpenOltFlowMgr
 from voltha.adapters.openolt.openolt_alarms import OpenOltAlarmMgr
 from voltha.adapters.openolt.openolt_statistics import OpenOltStatisticsMgr
-from voltha.adapters.openolt.openolt_bw import OpenOltBW
 from voltha.adapters.openolt.openolt_platform import OpenOltPlatform
 from voltha.adapters.openolt.openolt_resource_manager import OpenOltResourceMgr
+from voltha.adapters.openolt.openolt_data_model import OpenOltDataModel
 
 _ = third_party
 log = structlog.get_logger()
@@ -43,11 +43,11 @@ log = structlog.get_logger()
 OpenOltDefaults = {
     'support_classes': {
         'platform': OpenOltPlatform,
+        'data_model': OpenOltDataModel,
         'resource_mgr': OpenOltResourceMgr,
         'flow_mgr': OpenOltFlowMgr,
         'alarm_mgr': OpenOltAlarmMgr,
         'stats_mgr': OpenOltStatisticsMgr,
-        'bw_mgr': OpenOltBW
     }
 }
 
@@ -110,8 +110,9 @@ class OpenoltAdapter(object):
         kwargs = {
             'support_classes': OpenOltDefaults['support_classes'],
             'adapter_agent': self.adapter_agent,
-            'device': device,
-            'device_num': self.num_devices + 1
+            'device_id': device.id,
+            'host_and_port': device.host_and_port,
+            'extra_args': device.extra_args
         }
         try:
             self.devices[device.id] = OpenoltDevice(**kwargs)

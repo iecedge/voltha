@@ -16,6 +16,7 @@
 
 from voltha.protos.device_pb2 import Port
 import voltha.protos.device_pb2 as dev_pb2
+import voltha.core.flow_decomposer as fd
 
 """
 Encoding of identifiers
@@ -76,24 +77,19 @@ PON OLT (OF) port number
 
 """
 
+
 class OpenOltPlatform(object):
     MAX_PONS_PER_OLT = 16
-    MAX_ONUS_PER_PON = 32
+    MAX_ONUS_PER_PON = 128
     MAX_UNIS_PER_ONU = 16
-
-    def __init__(self, log, resource_mgr):
-        self.log = log
-        self.resource_mgr = resource_mgr
 
     def mk_uni_port_num(self, intf_id, onu_id, uni_id):
         assert intf_id < OpenOltPlatform.MAX_PONS_PER_OLT
         assert onu_id < OpenOltPlatform.MAX_ONUS_PER_PON
         assert uni_id < OpenOltPlatform.MAX_UNIS_PER_ONU
-        self.resource_mgr.assert_uni_id_limit(intf_id, onu_id, uni_id)
+        # Multiple unis not supported. Physical ONU equates to single UNI.
+        assert uni_id == 0
         return intf_id << 11 | onu_id << 4 | uni_id
-
-    #def mk_flow_id(self, intf_id, onu_id, idx):
-    #    return intf_id << 9 | onu_id << 4 | idx
 
     def uni_id_from_port_num(self, port_num):
         return port_num & 0xF
@@ -101,14 +97,14 @@ class OpenOltPlatform(object):
     def onu_id_from_port_num(self, port_num):
         return (port_num >> 4) & 0x7F
 
-
     def intf_id_from_uni_port_num(self, port_num):
         return (port_num >> 11) & 0xF
 
+    def onu_id_from_uni_port_num(self, port_num):
+        return (port_num >> 4) & 0x7F
 
     def intf_id_from_pon_port_no(self, port_no):
         return port_no & 0xF
-
 
     def intf_id_to_port_no(self, intf_id, intf_type):
         if intf_type is Port.ETHERNET_NNI:
@@ -118,10 +114,8 @@ class OpenOltPlatform(object):
         else:
             raise Exception('Invalid port type')
 
-
     def intf_id_from_nni_port_num(self, port_num):
         return port_num & 0xFFFF
-
 
     def intf_id_to_port_type_name(self, intf_id):
         if (2 << 28 ^ intf_id) < 16:
@@ -150,15 +144,36 @@ class OpenOltPlatform(object):
                     self.uni_id_from_port_num(out_port))
 
     def is_upstream(self, out_port):
-
         if out_port in [0xfffd, 0xfffffffd]:
             # To Controller
             return True
         if (out_port & (0x1 << 16)) == (0x1 << 16):
             # NNI interface
             return True
-
         return False
-    #
-    #def max_onus_per_pon(self):
-    #    return OpenOltPlatform.MAX_ONUS_PER_PON
+
+    def flow_extract_info(self, flow, flow_direction):
+        uni_port_no = None
+        if flow_direction == "upstream":
+            for field in fd.get_ofb_fields(flow):
+                if field.type == fd.IN_PORT:
+                    uni_port_no = field.port
+                    break
+        elif flow_direction == "downstream":
+            if uni_port_no is None:
+                for action in fd.get_actions(flow):
+                    if action.type == fd.OUTPUT:
+                        uni_port_no = action.output.port
+                        break
+
+            if uni_port_no is None:
+                uni_port_no = fd.get_metadata_from_write_metadata(flow) & 0xFFFFFFFF
+
+        if uni_port_no is None:
+            raise ValueError
+
+        pon_intf = self.intf_id_from_uni_port_num(uni_port_no)
+        onu_id = self.onu_id_from_uni_port_num(uni_port_no)
+        uni_id = self.uni_id_from_port_num(uni_port_no)
+
+        return int(pon_intf), int(onu_id), int(uni_id)

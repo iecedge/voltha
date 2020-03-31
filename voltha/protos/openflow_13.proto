@@ -2092,6 +2092,12 @@ message ofp_meter_features {
     uint32    max_color = 5;    /* Maximum color value */
 };
 
+message ofp_meter_entry {
+    ofp_meter_config config=1 [(voltha.yang_inline_node).id = 'config',
+                              (voltha.yang_inline_node).type = 'openflow_13-ofp_meter_config'];
+    ofp_meter_stats stats=2;
+}
+
 /* Body for ofp_multipart_request/reply of type OFPMP_EXPERIMENTER. */
 message ofp_experimenter_multipart_header {
     uint32 experimenter = 1;   /* Experimenter ID which takes the same form
@@ -2267,6 +2273,10 @@ message Flows {
     repeated ofp_flow_stats items = 1;
 }
 
+message Meters {
+    repeated ofp_meter_entry items = 1;
+}
+
 message FlowGroups {
     repeated ofp_group_entry items = 1;
 }
@@ -2295,5 +2305,6 @@ message ChangeEvent {
     string id = 1; // LogicalDevice.id
     oneof event {
         ofp_port_status port_status = 2;
+        ofp_flow_removed flow_removed = 3;
     }
 }
